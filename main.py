@@ -41,8 +41,23 @@ def validate_entry(text):
         return False
     if not text.strip():
         return False
-    # Reject control characters (C0/C1 and DEL); a forecast line has none.
-    if any(ord(ch) < 0x20 or 0x7F <= ord(ch) < 0xA0 for ch in text):
+    # Reject control characters (C0 and DEL); a forecast line has none.
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in text):
+        return False
+    # Reject C1 control characters (U+0080-U+009F): invisible formatting
+    # controls (e.g. padding, next-line) that never belong in a
+    # one-line forecast and would render inconsistently across viewers.
+    if any(0x80 <= ord(ch) <= 0x9F for ch in text):
+        return False
+    # Reject U+FFFD, the Unicode replacement character: it only appears
+    # when bytes failed to decode, so its presence means the text is
+    # already corrupted; a clean hand-written line never contains it.
+    if "\ufffd" in text:
+        return False
+    # Reject lone surrogates (U+D800-U+DFFF): they are not valid Unicode
+    # scalar values and cannot encode to UTF-8, so the text could not
+    # be written out byte-for-byte.
+    if any(0xD800 <= ord(ch) <= 0xDFFF for ch in text):
         return False
     try:
         text.encode("utf-8")
